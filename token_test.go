@@ -4,6 +4,7 @@ package token
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -65,16 +66,16 @@ func TestNewToken(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			token, err := NewToken(ctx, tt.maxCap, tt.length)
-			
+
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewToken() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			
+
 			if !tt.wantErr && token == nil {
 				t.Error("NewToken() returned nil token without error")
 			}
-			
+
 			if token != nil {
 				// Cancel context to stop manager goroutine
 				cancelCtx, cancel := context.WithCancel(ctx)
@@ -414,7 +415,7 @@ func TestToken_Concurrency(t *testing.T) {
 		}
 
 		var wg sync.WaitGroup
-		
+
 		// Launch takers
 		for i := 0; i < 20; i++ {
 			wg.Add(1)
@@ -422,7 +423,7 @@ func TestToken_Concurrency(t *testing.T) {
 				defer wg.Done()
 				timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 				defer cancel()
-				
+
 				err := token.Take(timeoutCtx)
 				if err == nil {
 					// Hold token briefly
@@ -480,21 +481,20 @@ func TestToken_ContextCancellation(t *testing.T) {
 		// This won't error but won't be processed either
 		timeoutCtx, timeoutCancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer timeoutCancel()
-		
 		err = token.SetCapacity(timeoutCtx, 8)
 		// The SetCapacity might succeed in sending but the manager won't process it
 		_ = err
 	})
 
 	t.Run("SetCapacity fails when token context is cancelled", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancelCause(context.Background())
 		token, err := NewToken(ctx, 10, 5)
 		if err != nil {
 			t.Fatalf("Failed to create token: %v", err)
 		}
 
 		// Cancel the token's internal context
-		cancel()
+		cancel(fmt.Errorf("token bucket is closed"))
 
 		// Give manager goroutine time to exit
 		time.Sleep(50 * time.Millisecond)

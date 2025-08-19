@@ -62,7 +62,9 @@ func NewToken(ctx context.Context, maxCap, len int) (*Token, error) {
 func (t *Token) Take(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return context.Cause(ctx)
+	case <-t.ctx.Done():
+		return context.Cause(t.ctx)
 	case <-t.buf:
 		return nil
 	}
@@ -77,7 +79,9 @@ func (t *Token) Take(ctx context.Context) error {
 func (t *Token) Release(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return context.Cause(ctx)
+	case <-t.ctx.Done():
+		return context.Cause(t.ctx)
 	case t.buf <- struct{}{}:
 		return nil
 
@@ -100,9 +104,9 @@ func (t *Token) SetCapacity(ctx context.Context, c int) error {
 
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return context.Cause(ctx)
 	case <-t.ctx.Done():
-		return fmt.Errorf("token bucket is closed: %w", t.ctx.Err())
+		return context.Cause(t.ctx)
 	case t.cap <- c:
 	}
 	return nil
